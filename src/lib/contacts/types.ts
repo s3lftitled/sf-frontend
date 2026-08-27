@@ -3,6 +3,25 @@
  * Field names stay snake_case so payloads map 1:1 onto the wire format.
  */
 
+/** What a stored address is used for. */
+export const ADDRESS_TYPES = ["Home", "Work", "Other"] as const;
+export type AddressType = (typeof ADDRESS_TYPES)[number];
+
+/** `AddressCreate` — an address as sent in a contact request body. */
+export interface AddressInput {
+  type: AddressType;
+  street: string | null;
+  city: string | null;
+  state: string | null;
+  postal_code: string | null;
+  country: string | null;
+}
+
+/** `AddressRead` — a stored address, as returned inside a contact. */
+export interface Address extends AddressInput {
+  id: number;
+}
+
 /** `ContactRead` — a stored contact, as returned by every contact endpoint. */
 export interface Contact {
   id: number;
@@ -13,11 +32,7 @@ export interface Contact {
   photo: string | null;
   company: string | null;
   job_title: string | null;
-  address: string | null;
-  city: string | null;
-  state: string | null;
-  postal_code: string | null;
-  country: string | null;
+  addresses: Address[];
   notes: string | null;
   created_at: string;
   updated_at: string;
@@ -27,8 +42,12 @@ export interface Contact {
 /** Every editable field, i.e. `ContactCreate` / `ContactReplace`. */
 export type ContactInput = Omit<
   Contact,
-  "id" | "created_at" | "updated_at" | "full_name"
->;
+  "id" | "created_at" | "updated_at" | "full_name" | "addresses"
+> & { addresses: AddressInput[] };
+
+/** The text fields the form metadata renders. Photo and addresses are their own
+ *  controls, so they are excluded from the per-field error and value maps. */
+export type ContactTextField = Exclude<keyof ContactInput, "addresses">;
 
 /** `ContactPage` — one page of contacts plus the totals needed to paginate. */
 export interface ContactPage {
@@ -75,9 +94,11 @@ export type FormState = {
   /** Message shown above the form; used for API-level failures. */
   message?: string;
   /** Per-field messages keyed by input name. */
-  fieldErrors?: Partial<Record<keyof ContactInput, string>>;
+  fieldErrors?: Partial<Record<ContactTextField, string>>;
   /** Echo of the submitted values so the form survives a failed round trip. */
-  values?: Partial<Record<keyof ContactInput, string>>;
+  values?: Partial<Record<ContactTextField, string>>;
+  /** Echo of the submitted addresses, so the rows survive a failed round trip. */
+  addresses?: AddressInput[];
 };
 
 export const EMPTY_FORM_STATE: FormState = { status: "idle" };

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { MAX_PHOTO_BYTES, PHOTO_DATA_URL, photoBytes } from "./photo";
-import type { ContactInput } from "./types";
+import { ADDRESS_TYPES } from "./types";
+import type { AddressInput, ContactInput, ContactTextField } from "./types";
 
 /**
  * Client/server-shared validation for the contact form.
@@ -29,6 +30,15 @@ function requiredText(max: number, label: string) {
     .max(max, `${label} must be ${max} characters or fewer`);
 }
 
+export const addressInputSchema = z.object({
+  type: z.enum(ADDRESS_TYPES),
+  street: optionalText(300, "Street address"),
+  city: optionalText(120, "City"),
+  state: optionalText(120, "State"),
+  postal_code: optionalText(20, "Postal code"),
+  country: optionalText(120, "Country"),
+}) satisfies z.ZodType<AddressInput, unknown>;
+
 export const contactInputSchema = z.object({
   first_name: requiredText(100, "First name"),
   last_name: requiredText(100, "Last name"),
@@ -56,11 +66,7 @@ export const contactInputSchema = z.object({
     ),
   company: optionalText(200, "Company"),
   job_title: optionalText(200, "Job title"),
-  address: optionalText(300, "Address"),
-  city: optionalText(120, "City"),
-  state: optionalText(120, "State"),
-  postal_code: optionalText(20, "Postal code"),
-  country: optionalText(120, "Country"),
+  addresses: z.array(addressInputSchema).default([]),
   notes: z
     .string()
     .trim()
@@ -74,12 +80,12 @@ export type ContactFormValues = z.input<typeof contactInputSchema>;
 /** Collapse a ZodError into one message per field, keyed by input name. */
 export function zodFieldErrors(
   error: z.ZodError,
-): Partial<Record<keyof ContactInput, string>> {
-  const fieldErrors: Partial<Record<keyof ContactInput, string>> = {};
+): Partial<Record<ContactTextField, string>> {
+  const fieldErrors: Partial<Record<ContactTextField, string>> = {};
   for (const issue of error.issues) {
     const key = issue.path[0];
     if (typeof key === "string" && !(key in fieldErrors)) {
-      fieldErrors[key as keyof ContactInput] = issue.message;
+      fieldErrors[key as ContactTextField] = issue.message;
     }
   }
   return fieldErrors;
@@ -90,7 +96,7 @@ export function zodFieldErrors(
 /* ------------------------------------------------------------------ */
 
 export interface ContactFieldSpec {
-  name: keyof ContactInput;
+  name: ContactTextField;
   label: string;
   type?: "text" | "email" | "tel" | "textarea";
   required?: boolean;
@@ -168,48 +174,6 @@ export const CONTACT_FIELD_GROUPS: ContactFieldGroup[] = [
     ],
   },
   {
-    title: "Address",
-    description: "Optional postal details.",
-    fields: [
-      {
-        name: "address",
-        label: "Street address",
-        maxLength: 300,
-        placeholder: "1 Market St, Suite 400",
-        autoComplete: "street-address",
-        wide: true,
-      },
-      {
-        name: "city",
-        label: "City",
-        maxLength: 120,
-        placeholder: "San Francisco",
-        autoComplete: "address-level2",
-      },
-      {
-        name: "state",
-        label: "State / region",
-        maxLength: 120,
-        placeholder: "CA",
-        autoComplete: "address-level1",
-      },
-      {
-        name: "postal_code",
-        label: "Postal code",
-        maxLength: 20,
-        placeholder: "94105",
-        autoComplete: "postal-code",
-      },
-      {
-        name: "country",
-        label: "Country",
-        maxLength: 120,
-        placeholder: "USA",
-        autoComplete: "country-name",
-      },
-    ],
-  },
-  {
     title: "Notes",
     description: "Anything worth remembering. No length limit.",
     fields: [
@@ -232,7 +196,7 @@ export const CONTACT_FIELDS: ContactFieldSpec[] = CONTACT_FIELD_GROUPS.flatMap(
 /** Pull the contact fields out of a submitted form, as raw strings. */
 export function formDataToValues(
   formData: FormData,
-): Record<keyof ContactInput, string> {
+): Record<ContactTextField, string> {
   return {
     ...Object.fromEntries(
       CONTACT_FIELDS.map((field) => [
@@ -243,5 +207,39 @@ export function formDataToValues(
     // The photo is a hidden data-URL input rather than one of the text controls
     // `CONTACT_FIELD_GROUPS` renders, so it is read separately.
     photo: String(formData.get("photo") ?? ""),
-  } as Record<keyof ContactInput, string>;
+  } as Record<ContactTextField, string>;
+}
+
+/**
+ * Pull the repeated address rows out of a submitted form.
+ *
+ * Each row's inputs are named `addresses[i].field`, so the index groups them
+ * without the form needing to know how many rows there are.
+ */
+export function formDataToAddresses(formData: FormData): AddressInput[] {
+  const rows = new Map<string, Record<string, string>>();
+
+  for (const [key, value] of formData.entries()) {
+    const match = /^addresses\[(\d+)\]\.(\w+)$/.exec(key);
+    if (!match) continue;
+    const [, index, field] = match;
+    const row = rows.get(index) ?? {};
+    row[field] = String(value);
+    rows.set(index, row);
+  }
+
+  const text = (value: string | undefined) => value?.trim() || null;
+
+  return [...rows.entries()]
+    .sort(([a], [b]) => Number(a) - Number(b))
+    .map(([, row]) => ({
+      // The select only offers valid types; anything else is a hand-crafted
+      // post, and the API validates the value again regardless.
+      type: ADDRESS_TYPES.find((type) => type === row.type) ?? "Home",
+      street: text(row.street),
+      city: text(row.city),
+      state: text(row.state),
+      postal_code: text(row.postal_code),
+      country: text(row.country),
+    }));
 }
