@@ -1,7 +1,13 @@
 import { z } from "zod";
 import { MAX_PHOTO_BYTES, PHOTO_DATA_URL, photoBytes } from "./photo";
 import { ADDRESS_TYPES } from "./types";
-import type { AddressInput, ContactInput, ContactTextField } from "./types";
+import type {
+  AddressFieldErrors,
+  AddressFormRow,
+  AddressInput,
+  ContactInput,
+  ContactTextField,
+} from "./types";
 
 /**
  * Client/server-shared validation for the contact form.
@@ -77,6 +83,24 @@ export const contactInputSchema = z.object({
 
 export type ContactFormValues = z.input<typeof contactInputSchema>;
 
+/** Address issues arrive as `["addresses", index, field]`; group them by row so
+ *  each control can show its own message. */
+export function zodAddressErrors(error: z.ZodError): AddressFieldErrors {
+  const errors: AddressFieldErrors = {};
+
+  for (const issue of error.issues) {
+    const [root, index, field] = issue.path;
+    if (root !== "addresses" || typeof index !== "number") continue;
+
+    const row = (errors[index] ??= {});
+    if (typeof field === "string" && !(field in row)) {
+      row[field as keyof AddressInput] = issue.message;
+    }
+  }
+
+  return errors;
+}
+
 /** Collapse a ZodError into one message per field, keyed by input name. */
 export function zodFieldErrors(
   error: z.ZodError,
@@ -84,6 +108,7 @@ export function zodFieldErrors(
   const fieldErrors: Partial<Record<ContactTextField, string>> = {};
   for (const issue of error.issues) {
     const key = issue.path[0];
+    if (key === "addresses") continue;
     if (typeof key === "string" && !(key in fieldErrors)) {
       fieldErrors[key as ContactTextField] = issue.message;
     }
@@ -216,7 +241,7 @@ export function formDataToValues(
  * Each row's inputs are named `addresses[i].field`, so the index groups them
  * without the form needing to know how many rows there are.
  */
-export function formDataToAddresses(formData: FormData): AddressInput[] {
+export function formDataToAddresses(formData: FormData): AddressFormRow[] {
   const rows = new Map<string, Record<string, string>>();
 
   for (const [key, value] of formData.entries()) {
@@ -233,9 +258,9 @@ export function formDataToAddresses(formData: FormData): AddressInput[] {
   return [...rows.entries()]
     .sort(([a], [b]) => Number(a) - Number(b))
     .map(([, row]) => ({
-      // The select only offers valid types; anything else is a hand-crafted
-      // post, and the API validates the value again regardless.
-      type: ADDRESS_TYPES.find((type) => type === row.type) ?? "Home",
+      // Left as submitted: `addressInputSchema` is what decides whether it is a
+      // real type, so a tampered value is rejected rather than quietly changed.
+      type: row.type ?? "",
       street: text(row.street),
       city: text(row.city),
       state: text(row.state),

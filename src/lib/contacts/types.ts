@@ -17,6 +17,18 @@ export interface AddressInput {
   country: string | null;
 }
 
+/** One address row exactly as the form submitted it, before validation — the
+ *  type is still a raw string so an invalid one can be rejected rather than
+ *  quietly corrected. */
+export interface AddressFormRow {
+  type: string;
+  street: string | null;
+  city: string | null;
+  state: string | null;
+  postal_code: string | null;
+  country: string | null;
+}
+
 /** `AddressRead` — a stored address, as returned inside a contact. */
 export interface Address extends AddressInput {
   id: number;
@@ -98,7 +110,14 @@ export type FormState = {
   /** Echo of the submitted values so the form survives a failed round trip. */
   values?: Partial<Record<ContactTextField, string>>;
   /** Echo of the submitted addresses, so the rows survive a failed round trip. */
-  addresses?: AddressInput[];
+  addresses?: AddressFormRow[];
+  /** Per-row, per-field address messages, keyed by row index. */
+  addressErrors?: AddressFieldErrors;
 };
+
+export type AddressFieldErrors = Record<
+  number,
+  Partial<Record<keyof AddressInput, string>>
+>;
 
 export const EMPTY_FORM_STATE: FormState = { status: "idle" };

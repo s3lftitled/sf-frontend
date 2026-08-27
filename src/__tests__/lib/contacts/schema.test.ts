@@ -3,6 +3,7 @@ import {
   contactInputSchema,
   formDataToAddresses,
   formDataToValues,
+  zodAddressErrors,
   zodFieldErrors,
 } from "@/lib/contacts/schema";
 
@@ -117,6 +118,29 @@ describe("addresses", () => {
     ]);
   });
 
+  it("reports which row and field failed", () => {
+    const result = contactInputSchema.safeParse({
+      ...values(),
+      addresses: [
+        { type: "Home", city: "London" },
+        { type: "Holiday", postal_code: "9".repeat(21) },
+      ],
+    });
+
+    const errors = zodAddressErrors(result.error!);
+    expect(errors[0]).toBeUndefined();
+    expect(errors[1].type).toBeDefined();
+    expect(errors[1].postal_code).toBe("Postal code must be 20 characters or fewer");
+  });
+
+  it("keeps address issues out of the top-level field errors", () => {
+    const result = contactInputSchema.safeParse({
+      ...values(),
+      addresses: [{ type: "Holiday" }],
+    });
+    expect(zodFieldErrors(result.error!)).toEqual({});
+  });
+
   it("rejects an unknown address type", () => {
     const result = contactInputSchema.safeParse({
       ...values(),
@@ -153,6 +177,17 @@ describe("formDataToValues", () => {
       { type: "Work", street: null, city: "San Francisco", state: null, postal_code: null, country: null },
       { type: "Home", street: null, city: "London", state: null, postal_code: null, country: null },
     ]);
+  });
+
+  it("passes a tampered type through so validation can reject it", () => {
+    const formData = new FormData();
+    formData.set("addresses[0].type", "Holiday");
+
+    const rows = formDataToAddresses(formData);
+    expect(rows[0].type).toBe("Holiday");
+    expect(
+      contactInputSchema.safeParse({ ...values(), addresses: rows }).success,
+    ).toBe(false);
   });
 
   it("reads the photo from its hidden input", () => {

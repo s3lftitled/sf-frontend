@@ -3,7 +3,11 @@
 import { useState } from "react";
 import { MapPin, Plus, Trash2 } from "lucide-react";
 import Button from "@/components/ui/Button";
-import { ADDRESS_TYPES, type AddressInput } from "@/lib/contacts/types";
+import {
+  ADDRESS_TYPES,
+  type AddressFieldErrors,
+  type AddressFormRow,
+} from "@/lib/contacts/types";
 
 const CONTROL =
   "w-full rounded-md border border-border bg-input px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 transition-colors focus:border-primary focus:bg-input";
@@ -16,7 +20,7 @@ const PARTS = [
   { name: "country", label: "Country", max: 120, placeholder: "USA" },
 ] as const;
 
-function emptyAddress(): AddressInput {
+function emptyAddress(): AddressFormRow {
   return {
     type: "Home",
     street: null,
@@ -37,8 +41,10 @@ function emptyAddress(): AddressInput {
  */
 export default function AddressFields({
   defaultValue,
+  errors,
 }: {
-  defaultValue: AddressInput[];
+  defaultValue: AddressFormRow[];
+  errors?: AddressFieldErrors;
 }) {
   const [rows, setRows] = useState(() =>
     defaultValue.map((address, index) => ({ key: index, address })),
@@ -74,7 +80,10 @@ export default function AddressFields({
         </p>
       ) : null}
 
-      {rows.map(({ key, address }, index) => (
+      {rows.map(({ key, address }, index) => {
+        const rowErrors = errors?.[index] ?? {};
+
+        return (
         <div
           key={key}
           className="space-y-4 rounded-lg border border-border bg-card/50 p-4"
@@ -91,7 +100,10 @@ export default function AddressFields({
                 id={`address-${key}-type`}
                 name={`addresses[${index}].type`}
                 defaultValue={address.type}
-                className={`${CONTROL} w-auto pr-8`}
+                aria-invalid={rowErrors.type ? true : undefined}
+                className={`${CONTROL} w-auto pr-8 ${
+                  rowErrors.type ? "border-destructive" : ""
+                }`}
               >
                 {ADDRESS_TYPES.map((type) => (
                   <option key={type} value={type}>
@@ -99,6 +111,11 @@ export default function AddressFields({
                   </option>
                 ))}
               </select>
+              {rowErrors.type ? (
+                <p role="alert" className="mt-1.5 text-[13px] text-destructive">
+                  {rowErrors.type}
+                </p>
+              ) : null}
             </div>
 
             <Button
@@ -127,13 +144,22 @@ export default function AddressFields({
                   defaultValue={address[part.name] ?? ""}
                   maxLength={part.max}
                   placeholder={part.placeholder}
-                  className={CONTROL}
+                  aria-invalid={rowErrors[part.name] ? true : undefined}
+                  className={`${CONTROL} ${
+                    rowErrors[part.name] ? "border-destructive" : ""
+                  }`}
                 />
+                {rowErrors[part.name] ? (
+                  <p role="alert" className="mt-1.5 text-[13px] text-destructive">
+                    {rowErrors[part.name]}
+                  </p>
+                ) : null}
               </div>
             ))}
           </div>
-        </div>
-      ))}
+          </div>
+        );
+      })}
 
       <Button variant="secondary" size="sm" onClick={addRow}>
         <Plus className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />

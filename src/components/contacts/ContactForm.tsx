@@ -90,6 +90,7 @@ export default function ContactForm({
 
       <AddressFields
         defaultValue={state.addresses ?? contact?.addresses ?? []}
+        errors={state.addressErrors}
       />
 
       {CONTACT_FIELD_GROUPS.map((group) => (

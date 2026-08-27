@@ -14,6 +14,7 @@ import {
   contactInputSchema,
   formDataToAddresses,
   formDataToValues,
+  zodAddressErrors,
   zodFieldErrors,
 } from "@/lib/contacts/schema";
 import type { Contact, FormState } from "@/lib/contacts/types";
@@ -48,6 +49,7 @@ export async function saveContactAction(
       status: "error",
       message: "Please fix the highlighted fields.",
       fieldErrors: zodFieldErrors(parsed.error),
+      addressErrors: zodAddressErrors(parsed.error),
       values,
       addresses,
     };
