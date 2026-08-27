@@ -1,7 +1,9 @@
 import {
   CONTACT_FIELDS,
   contactInputSchema,
+  formDataToAddresses,
   formDataToValues,
+  zodAddressErrors,
   zodFieldErrors,
 } from "@/lib/contacts/schema";
 
@@ -17,11 +19,6 @@ function values(overrides: Record<string, string> = {}) {
     phone: "",
     company: "",
     job_title: "",
-    address: "",
-    city: "",
-    state: "",
-    postal_code: "",
-    country: "",
     notes: "",
     ...overrides,
   };
@@ -62,12 +59,12 @@ describe("contactInputSchema", () => {
 
   it("enforces the API's length limits", () => {
     const result = contactInputSchema.safeParse(
-      values({ first_name: "a".repeat(101), postal_code: "9".repeat(21) }),
+      values({ first_name: "a".repeat(101), company: "c".repeat(201) }),
     );
 
     expect(zodFieldErrors(result.error!)).toEqual({
       first_name: "First name must be 100 characters or fewer",
-      postal_code: "Postal code must be 20 characters or fewer",
+      company: "Company must be 200 characters or fewer",
     });
   });
 });
@@ -98,6 +95,61 @@ describe("photo", () => {
   });
 });
 
+describe("addresses", () => {
+  it("defaults to an empty list", () => {
+    const result = contactInputSchema.safeParse(values());
+    expect(result.success && result.data.addresses).toEqual([]);
+  });
+
+  it("accepts many addresses with different types", () => {
+    const result = contactInputSchema.safeParse({
+      ...values(),
+      addresses: [
+        { type: "Home", city: "London" },
+        { type: "Work", city: "San Francisco" },
+        { type: "Other", city: "Paris" },
+      ],
+    });
+
+    expect(result.success && result.data.addresses.map((a) => a.type)).toEqual([
+      "Home",
+      "Work",
+      "Other",
+    ]);
+  });
+
+  it("reports which row and field failed", () => {
+    const result = contactInputSchema.safeParse({
+      ...values(),
+      addresses: [
+        { type: "Home", city: "London" },
+        { type: "Holiday", postal_code: "9".repeat(21) },
+      ],
+    });
+
+    const errors = zodAddressErrors(result.error!);
+    expect(errors[0]).toBeUndefined();
+    expect(errors[1].type).toBeDefined();
+    expect(errors[1].postal_code).toBe("Postal code must be 20 characters or fewer");
+  });
+
+  it("keeps address issues out of the top-level field errors", () => {
+    const result = contactInputSchema.safeParse({
+      ...values(),
+      addresses: [{ type: "Holiday" }],
+    });
+    expect(zodFieldErrors(result.error!)).toEqual({});
+  });
+
+  it("rejects an unknown address type", () => {
+    const result = contactInputSchema.safeParse({
+      ...values(),
+      addresses: [{ type: "Holiday", city: "Nice" }],
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
 describe("formDataToValues", () => {
   it("pulls every known field out, defaulting to an empty string", () => {
     const formData = new FormData();
@@ -112,6 +164,30 @@ describe("formDataToValues", () => {
     expect(Object.keys(extracted).sort()).toEqual(
       [...CONTACT_FIELDS.map((field) => field.name), "photo"].sort(),
     );
+  });
+
+  it("groups the indexed address inputs into rows", () => {
+    const formData = new FormData();
+    formData.set("addresses[0].type", "Work");
+    formData.set("addresses[0].city", "San Francisco");
+    formData.set("addresses[1].type", "Home");
+    formData.set("addresses[1].city", "London");
+
+    expect(formDataToAddresses(formData)).toEqual([
+      { type: "Work", street: null, city: "San Francisco", state: null, postal_code: null, country: null },
+      { type: "Home", street: null, city: "London", state: null, postal_code: null, country: null },
+    ]);
+  });
+
+  it("passes a tampered type through so validation can reject it", () => {
+    const formData = new FormData();
+    formData.set("addresses[0].type", "Holiday");
+
+    const rows = formDataToAddresses(formData);
+    expect(rows[0].type).toBe("Holiday");
+    expect(
+      contactInputSchema.safeParse({ ...values(), addresses: rows }).success,
+    ).toBe(false);
   });
 
   it("reads the photo from its hidden input", () => {

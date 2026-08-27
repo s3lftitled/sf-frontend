@@ -34,3 +34,7 @@ yarn-debug.log*
 yarn-error.log*
 /tmp/nextjs.log
 /.claude/
+
+# Written by `next dev` on every start
+/AGENTS.md
+/CLAUDE.md

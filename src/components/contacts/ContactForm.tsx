@@ -6,12 +6,13 @@ import Link from "next/link";
 import { AlertCircle, Loader2 } from "lucide-react";
 import Field from "@/components/ui/Field";
 import PhotoField from "@/components/contacts/PhotoField";
+import AddressFields from "@/components/contacts/AddressFields";
 import Button, { buttonClasses } from "@/components/ui/Button";
 import { CONTACT_FIELD_GROUPS } from "@/lib/contacts/schema";
 import {
   EMPTY_FORM_STATE,
   type Contact,
-  type ContactInput,
+  type ContactTextField,
   type FormState,
 } from "@/lib/contacts/types";
 
@@ -61,7 +62,7 @@ export default function ContactForm({
   const [state, formAction] = useActionState(action, EMPTY_FORM_STATE);
   const [encoding, setEncoding] = useState(false);
 
-  function valueFor(name: keyof ContactInput): string {
+  function valueFor(name: ContactTextField): string {
     return state.values?.[name] ?? contact?.[name] ?? "";
   }
 
@@ -85,6 +86,14 @@ export default function ContactForm({
         defaultValue={valueFor("photo")}
         error={state.fieldErrors?.photo}
         onEncodingChange={setEncoding}
+      />
+
+      {/* Remounting on each response re-seeds the rows from what was actually
+          submitted, so their keys line up with the error indexes again. */}
+      <AddressFields
+        key={state.submissionId ?? "initial"}
+        defaultValue={state.addresses ?? contact?.addresses ?? []}
+        errors={state.addressErrors}
       />
 
       {CONTACT_FIELD_GROUPS.map((group) => (
