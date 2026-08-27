@@ -54,6 +54,11 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [{ source: "/", destination: "/contacts", permanent: true }];
   },
+  experimental: {
+    // Photos are submitted inline as base64, which inflates them by a third, so
+    // the action body limit has to clear what `contactInputSchema` accepts.
+    serverActions: { bodySizeLimit: "2mb" },
+  },
   env: {
     NEXT_PUBLIC_APP_VERSION: appVersion,
     NEXT_PUBLIC_BUILD_NUMBER: buildNumber,

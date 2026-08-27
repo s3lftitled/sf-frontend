@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ImagePlus, Loader2, Trash2, UserRound } from "lucide-react";
 import Button, { buttonClasses } from "@/components/ui/Button";
 import {
@@ -19,25 +19,47 @@ import {
 export default function PhotoField({
   defaultValue,
   error,
+  onEncodingChange,
 }: {
   defaultValue: string;
   error?: string;
+  /** Lets the form block submission while an image is still being encoded. */
+  onEncodingChange?: (encoding: boolean) => void;
 }) {
   const [photo, setPhoto] = useState(defaultValue);
   const [failure, setFailure] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Bumped on every pick and removal, so a slow encode cannot land on top of a
+  // newer choice the user has already made.
+  const generation = useRef(0);
+
+  function setEncoding(encoding: boolean) {
+    setBusy(encoding);
+    onEncodingChange?.(encoding);
+  }
 
   async function onPick(file: File | undefined) {
     if (!file) return;
+    const token = ++generation.current;
     setFailure(null);
-    setBusy(true);
+    setEncoding(true);
     try {
-      setPhoto(await encodePhoto(file));
+      const encoded = await encodePhoto(file);
+      if (token === generation.current) setPhoto(encoded);
     } catch {
-      setFailure("That file could not be read as an image.");
+      if (token === generation.current) {
+        setFailure("That file could not be read as an image.");
+      }
     } finally {
-      setBusy(false);
+      if (token === generation.current) setEncoding(false);
     }
+  }
+
+  function onRemove() {
+    generation.current += 1;
+    setPhoto("");
+    setFailure(null);
+    setEncoding(false);
   }
 
   const message = error ?? failure;
@@ -93,10 +115,7 @@ export default function PhotoField({
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => {
-                  setPhoto("");
-                  setFailure(null);
-                }}
+                onClick={onRemove}
               >
                 <Trash2
                   className="h-4 w-4"

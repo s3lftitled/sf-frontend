@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
 import Link from "next/link";
 import { AlertCircle, Loader2 } from "lucide-react";
@@ -20,15 +20,24 @@ export type ContactFormAction = (
   formData: FormData,
 ) => Promise<FormState>;
 
-function SubmitButton({ label }: { label: string }) {
+function SubmitButton({
+  label,
+  encoding,
+}: {
+  label: string;
+  encoding: boolean;
+}) {
   const { pending } = useFormStatus();
+  // Submitting mid-encode would post the previous photo, so hold the button
+  // until the picked image has been written into the form.
+  const blocked = pending || encoding;
 
   return (
-    <Button type="submit" disabled={pending}>
-      {pending ? (
+    <Button type="submit" disabled={blocked}>
+      {blocked ? (
         <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
       ) : null}
-      {pending ? "Saving…" : label}
+      {pending ? "Saving…" : encoding ? "Preparing photo…" : label}
     </Button>
   );
 }
@@ -50,6 +59,7 @@ export default function ContactForm({
   cancelHref: string;
 }) {
   const [state, formAction] = useActionState(action, EMPTY_FORM_STATE);
+  const [encoding, setEncoding] = useState(false);
 
   function valueFor(name: keyof ContactInput): string {
     return state.values?.[name] ?? contact?.[name] ?? "";
@@ -74,6 +84,7 @@ export default function ContactForm({
       <PhotoField
         defaultValue={valueFor("photo")}
         error={state.fieldErrors?.photo}
+        onEncodingChange={setEncoding}
       />
 
       {CONTACT_FIELD_GROUPS.map((group) => (
@@ -103,7 +114,7 @@ export default function ContactForm({
       ))}
 
       <div className="flex items-center gap-2 border-t border-hairline pt-4">
-        <SubmitButton label={submitLabel} />
+        <SubmitButton label={submitLabel} encoding={encoding} />
         <Link href={cancelHref} className={buttonClasses("secondary")}>
           Cancel
         </Link>
