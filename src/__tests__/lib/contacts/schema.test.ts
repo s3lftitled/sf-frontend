@@ -5,6 +5,10 @@ import {
   zodFieldErrors,
 } from "@/lib/contacts/schema";
 
+/** 1x1 transparent GIF — the smallest value the data-URL rules accept. */
+const PHOTO =
+  "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+
 function values(overrides: Record<string, string> = {}) {
   return {
     first_name: "Ada",
@@ -68,6 +72,32 @@ describe("contactInputSchema", () => {
   });
 });
 
+describe("photo", () => {
+  it("accepts an image data URL", () => {
+    const result = contactInputSchema.safeParse(values({ photo: PHOTO }));
+    expect(result.success && result.data.photo).toBe(PHOTO);
+  });
+
+  it("treats a blank photo as no photo", () => {
+    const result = contactInputSchema.safeParse(values({ photo: "" }));
+    expect(result.success && result.data.photo).toBeNull();
+  });
+
+  it("rejects a non-image data URL", () => {
+    const result = contactInputSchema.safeParse(
+      values({ photo: "data:application/pdf;base64,Zm9v" }),
+    );
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects a photo over the size limit", () => {
+    const result = contactInputSchema.safeParse(
+      values({ photo: `data:image/png;base64,${"A".repeat(2 * 1024 * 1024)}` }),
+    );
+    expect(result.success).toBe(false);
+  });
+});
+
 describe("formDataToValues", () => {
   it("pulls every known field out, defaulting to an empty string", () => {
     const formData = new FormData();
@@ -80,7 +110,14 @@ describe("formDataToValues", () => {
     expect(extracted.first_name).toBe("Grace");
     expect(extracted.last_name).toBe("");
     expect(Object.keys(extracted).sort()).toEqual(
-      CONTACT_FIELDS.map((field) => field.name).sort(),
+      [...CONTACT_FIELDS.map((field) => field.name), "photo"].sort(),
     );
+  });
+
+  it("reads the photo from its hidden input", () => {
+    const formData = new FormData();
+    formData.set("photo", PHOTO);
+
+    expect(formDataToValues(formData).photo).toBe(PHOTO);
   });
 });

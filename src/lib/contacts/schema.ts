@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MAX_PHOTO_BYTES, PHOTO_DATA_URL, photoBytes } from "./photo";
 import type { ContactInput } from "./types";
 
 /**
@@ -39,6 +40,20 @@ export const contactInputSchema = z.object({
     .pipe(z.email("Enter a valid email address"))
     .transform((value) => value.toLowerCase()),
   phone: optionalText(40, "Phone"),
+  photo: z
+    .string()
+    .trim()
+    .transform((value) => value || null)
+    .nullable()
+    .default(null)
+    .refine(
+      (value) => value === null || PHOTO_DATA_URL.test(value),
+      "Photo must be a JPEG, PNG, WebP, or GIF image",
+    )
+    .refine(
+      (value) => value === null || photoBytes(value) <= MAX_PHOTO_BYTES,
+      `Photo must be ${MAX_PHOTO_BYTES / 1024} KB or smaller`,
+    ),
   company: optionalText(200, "Company"),
   job_title: optionalText(200, "Job title"),
   address: optionalText(300, "Address"),
@@ -218,10 +233,15 @@ export const CONTACT_FIELDS: ContactFieldSpec[] = CONTACT_FIELD_GROUPS.flatMap(
 export function formDataToValues(
   formData: FormData,
 ): Record<keyof ContactInput, string> {
-  return Object.fromEntries(
-    CONTACT_FIELDS.map((field) => [
-      field.name,
-      String(formData.get(field.name) ?? ""),
-    ]),
-  ) as Record<keyof ContactInput, string>;
+  return {
+    ...Object.fromEntries(
+      CONTACT_FIELDS.map((field) => [
+        field.name,
+        String(formData.get(field.name) ?? ""),
+      ]),
+    ),
+    // The photo is a hidden data-URL input rather than one of the text controls
+    // `CONTACT_FIELD_GROUPS` renders, so it is read separately.
+    photo: String(formData.get("photo") ?? ""),
+  } as Record<keyof ContactInput, string>;
 }
