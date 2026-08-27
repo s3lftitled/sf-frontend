@@ -88,7 +88,10 @@ export default function ContactForm({
         onEncodingChange={setEncoding}
       />
 
+      {/* Remounting on each response re-seeds the rows from what was actually
+          submitted, so their keys line up with the error indexes again. */}
       <AddressFields
+        key={state.submissionId ?? "initial"}
         defaultValue={state.addresses ?? contact?.addresses ?? []}
         errors={state.addressErrors}
       />

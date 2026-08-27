@@ -113,6 +113,9 @@ export type FormState = {
   addresses?: AddressFormRow[];
   /** Per-row, per-field address messages, keyed by row index. */
   addressErrors?: AddressFieldErrors;
+  /** Identifies each server response, so the address rows can re-key themselves
+   *  to the order that was actually submitted. */
+  submissionId?: number;
 };
 
 export type AddressFieldErrors = Record<

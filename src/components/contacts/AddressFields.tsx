@@ -37,7 +37,9 @@ function emptyAddress(): AddressFormRow {
  * Each input is named `addresses[i].field`, which is what lets a plain form POST
  * carry a variable number of addresses without any client-side serialisation.
  * Rows are keyed by a counter rather than their index, so removing one does not
- * shuffle the values of the rows below it.
+ * shuffle the values of the rows below it. Those keys start out equal to the
+ * submitted indexes, which is what lets the validation errors stay attached to
+ * the right address after a removal.
  */
 export default function AddressFields({
   defaultValue,
@@ -81,7 +83,9 @@ export default function AddressFields({
       ) : null}
 
       {rows.map(({ key, address }, index) => {
-        const rowErrors = errors?.[index] ?? {};
+        // Keyed by row identity, not render position: removing a row shifts every
+        // index below it, which would slide errors onto the wrong address.
+        const rowErrors = errors?.[key] ?? {};
 
         return (
         <div

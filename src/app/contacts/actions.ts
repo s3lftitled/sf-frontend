@@ -52,6 +52,7 @@ export async function saveContactAction(
       addressErrors: zodAddressErrors(parsed.error),
       values,
       addresses,
+      submissionId: Date.now(),
     };
   }
 
@@ -63,7 +64,13 @@ export async function saveContactAction(
         : await replaceContact(contactId, parsed.data);
   } catch (error) {
     if (error instanceof ApiUnreachableError) {
-      return { status: "error", message: UNREACHABLE, values, addresses };
+      return {
+        status: "error",
+        message: UNREACHABLE,
+        values,
+        addresses,
+        submissionId: Date.now(),
+      };
     }
     if (error instanceof ApiError) {
       if (error.status === 409) {
